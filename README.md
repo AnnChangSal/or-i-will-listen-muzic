@@ -2,6 +2,8 @@
 
 **Or I Will Listen Muzic** is a web application designed to help individuals manage job rejection experiences by logging their moods and receiving personalized song suggestions from Spotify. Over time, users can build a playlist that reflects their emotional journey, providing both solace and motivation.
 
+**Do you know? Muzic sounds similar to 'Unemployment' in Korean**
+
 ## Screenshots
 
 ![Main Page](assets/main.png)
