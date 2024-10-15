@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Or I Will Listen Muzic</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <h1>Or I Will Listen Muzic</h1>
+    <button id="login-button">Login with Spotify</button>
+
+    <div id="content" style="display:none;">
+        <h2>Log a Rejection</h2>
+        <select id="mood-select">
+            <option value="sad">Sad</option>
+            <option value="indifferent">Indifferent</option>
+            <option value="motivated">Motivated</option>
+        </select>
+        <button id="log-rejection">Log Rejection</button>
+
+        <div id="suggestion" style="margin-top:20px;">
+            <!-- Song suggestion will appear here -->
+        </div>
+
+        <h2>Your Playlists</h2>
+        <div id="playlists" class="playlists-container">
+            <!-- Playlists will be displayed here -->
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
