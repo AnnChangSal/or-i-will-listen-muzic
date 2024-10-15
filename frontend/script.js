@@ -6,26 +6,54 @@ const scopes = [
     'playlist-modify-public',
     'playlist-modify-private',
     'user-read-private',
-    'user-read-email'
+    'user-read-email',
+    'playlist-read-private',
+    'playlist-read-collaborative'
 ].join(' ');
 
-document.getElementById('login-button').addEventListener('click', () => {
-    const authURL = `https://accounts.spotify.com/authorize?response_type=code&client_id=${CLIENT_ID}&scope=${encodeURIComponent(scopes)}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}`;
-    window.location = authURL;
-});
+// Utility Function to Generate Random String for State
+function generateRandomString(length) {
+    let text = '';
+    const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  
+    for (let i = 0; i < length; i++) {
+      text += possible.charAt(Math.floor(Math.random() * possible.length));
+    }
+    return text;
+}
 
-// Function to get query parameters
+// Function to Get Query Parameters from URL
 function getQueryParams() {
     const params = {};
     window.location.search.substring(1).split('&').forEach(pair => {
         const [key, value] = pair.split('=');
-        params[key] = decodeURIComponent(value);
+        if (key) {
+            params[key] = decodeURIComponent(value);
+        }
     });
     return params;
 }
 
+// Login Button Event Listener
+document.getElementById('login-button').addEventListener('click', () => {
+    const state = generateRandomString(16);
+    localStorage.setItem('auth_state', state);
+    const authURL = `https://accounts.spotify.com/authorize?response_type=code&client_id=${CLIENT_ID}&scope=${encodeURIComponent(scopes)}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&state=${state}`;
+    window.location = authURL;
+});
+
+// On Window Load
 window.onload = () => {
     const params = getQueryParams();
+    const storedState = localStorage.getItem('auth_state');
+
+    if (params.state !== storedState) {
+        if (params.error) {
+            alert(`Error: ${params.error_description || params.error}`);
+        }
+        return;
+    }
+
     if (params.code) {
         // Exchange code for tokens
         fetch(`${BACKEND_URL}/api/token`, {
@@ -33,7 +61,7 @@ window.onload = () => {
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({ code: params.code })
+            body: JSON.stringify({ code: params.code, state: params.state })
         })
         .then(response => response.json())
         .then(data => {
@@ -43,17 +71,30 @@ window.onload = () => {
                 document.getElementById('login-button').style.display = 'none';
                 document.getElementById('content').style.display = 'block';
                 fetchPlaylists(data.access_token);
+
+                // Remove code and state from URL to prevent reuse
+                window.history.replaceState({}, document.title, "/");
             } else {
-                alert('Authentication failed.');
+                const errorMsg = data.error_description || 'Authentication failed.';
+                alert(`Error: ${errorMsg}`);
             }
         })
         .catch(err => {
             console.error(err);
-            alert('An error occurred during authentication.');
+            alert('An unexpected error occurred during authentication.');
         });
+    } else {
+        // Check if user is already authenticated
+        const accessToken = localStorage.getItem('access_token');
+        if (accessToken) {
+            document.getElementById('login-button').style.display = 'none';
+            document.getElementById('content').style.display = 'block';
+            fetchPlaylists(accessToken);
+        }
     }
 };
 
+// Fetch User Playlists
 function fetchPlaylists(accessToken) {
     fetch(`${BACKEND_URL}/api/playlists`, {
         method: 'GET',
@@ -63,7 +104,11 @@ function fetchPlaylists(accessToken) {
     })
     .then(response => response.json())
     .then(data => {
-        displayPlaylists(data.items);
+        if (data.items) {
+            displayPlaylists(data.items);
+        } else {
+            alert('Failed to fetch playlists.');
+        }
     })
     .catch(err => {
         console.error(err);
@@ -71,9 +116,15 @@ function fetchPlaylists(accessToken) {
     });
 }
 
+// Display Playlists on Frontend
 function displayPlaylists(playlists) {
     const playlistsContainer = document.getElementById('playlists');
     playlistsContainer.innerHTML = ''; // Clear any existing content
+
+    if (playlists.length === 0) {
+        playlistsContainer.innerHTML = '<p>No playlists found.</p>';
+        return;
+    }
 
     playlists.forEach(playlist => {
         const playlistElement = document.createElement('div');
@@ -90,9 +141,10 @@ function displayPlaylists(playlists) {
     });
 }
 
+// Log Rejection and Suggest Song
 document.getElementById('log-rejection').addEventListener('click', () => {
     const mood = document.getElementById('mood-select').value;
-    // Mock song suggestion based on mood
+    // Suggest a song based on mood
     let song;
     switch (mood) {
         case 'sad':
@@ -124,7 +176,7 @@ document.getElementById('log-rejection').addEventListener('click', () => {
         // Implement adding the song to a Spotify playlist
         // For demonstration, we'll map the song to its Spotify URI
         const songUri = getSongUri(song);
-        const playlistId = getDefaultPlaylistId(); // Implement a function to get your playlist ID
+        const playlistId = getDefaultPlaylistId(); // Replace with your actual playlist ID
 
         if (!songUri) {
             alert('Song URI not found.');
@@ -144,7 +196,8 @@ document.getElementById('log-rejection').addEventListener('click', () => {
             if (data.snapshot_id) {
                 alert(`"${song}" has been added to your Spotify playlist!`);
             } else {
-                alert('Failed to add the song to your playlist.');
+                const errorMsg = data.error || 'Failed to add the song to your playlist.';
+                alert(`Error: ${errorMsg}`);
             }
         })
         .catch(err => {
@@ -154,9 +207,10 @@ document.getElementById('log-rejection').addEventListener('click', () => {
     });
 });
 
+// Function to Map Song Names to Spotify URIs
 function getSongUri(songName) {
-    // Implement a search to Spotify API to get the song's URI
-    // For simplicity, maintain a mapping of song titles to URIs
+    // For production, implement a dynamic search to Spotify API to fetch song URIs
+    // Here, we use a predefined mapping for demonstration purposes
     const songMapping = {
         'Someone Like You - Adele': 'spotify:track:4kflIGfjdZJW0y29J1pYce',
         'Stairway to Heaven - Led Zeppelin': 'spotify:track:7otXgaI1H0HyEgo02iRcjM',
@@ -167,9 +221,42 @@ function getSongUri(songName) {
     return songMapping[songName] || null;
 }
 
+// Function to Get Default Playlist ID
 function getDefaultPlaylistId() {
-    // Can change this to a different playlist ID
+    // Replace with your actual playlist ID
     // You can get this from the playlist URL on Spotify
     // Example URL: https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M
     return '37i9dQZF1DXcBWIGoYBM5M'; // Example Playlist ID
+}
+
+// Function to Refresh Access Token (Optional Enhancement)
+function refreshAccessToken() {
+    const refreshToken = localStorage.getItem('refresh_token');
+    if (!refreshToken) {
+        alert('No refresh token available. Please log in again.');
+        return;
+    }
+
+    fetch(`${BACKEND_URL}/api/refresh-token`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ refresh_token: refreshToken })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.access_token) {
+            localStorage.setItem('access_token', data.access_token);
+            // Optionally, update UI or notify user
+            console.log('Access token refreshed successfully.');
+        } else {
+            const errorMsg = data.error_description || 'Token refresh failed.';
+            alert(`Error: ${errorMsg}`);
+        }
+    })
+    .catch(err => {
+        console.error(err);
+        alert('An unexpected error occurred during token refresh.');
+    });
 }
